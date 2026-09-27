@@ -26,8 +26,14 @@ Note: this is the failure mode where a passing test is worse than a failing one.
 
 ## Phase 0 — orientation
 
-_Installed, reset the database, read the documents, ran the suites against the untouched skeleton.
-What did the starting line actually look like, and which failure surprised you?_
+Installed the dependencies successfully with `npm install`.
+
+Expected `npm run db:reset` to work, but it failed because the script uses the Unix `rm` command, which is not available in my Windows PowerShell environment.
+
+Running `npm run db:load` then exposed a Windows path issue in `scripts/load-db.js`: using `.pathname` produced an invalid `C:\C:\...` path and encoded spaces.
+
+Changed the file-URL conversion to use Node's `fileURLToPath(new URL(...))`; database loading then succeeded and the personalized fixture was created.
+
 
 ## Phase 1 — token verification
 
