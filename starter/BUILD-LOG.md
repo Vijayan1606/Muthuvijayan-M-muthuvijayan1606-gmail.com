@@ -37,8 +37,18 @@ Changed the file-URL conversion to use Node's `fileURLToPath(new URL(...))`; dat
 
 ## Phase 1 — token verification
 
-_What did you expect each failure mode to look like before you ran it? Which one behaved
-differently from your expectation, and what did that tell you?_
+Expected the verifier to reject malformed tokens, algorithm substitutions, bad signatures,
+expired tokens, and invalid issuer/audience/jti claims.
+
+Observed: the public JWT suite initially failed because `verifyAccessToken()` was still a stub.
+After implementing the checks in the required order, all 43 cases passed.
+
+Changed: added three-segment validation, JSON header/payload decoding, HS256/JWT pinning,
+constant-time signature verification, expiry validation, issuer/audience validation, and
+required `jti` validation.
+
+Note: `exp == now` is rejected, confirming the required half-open expiry boundary.
+
 
 ## Phase 2 — caller context and the resolution engine
 

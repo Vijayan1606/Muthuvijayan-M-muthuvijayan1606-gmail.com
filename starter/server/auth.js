@@ -71,12 +71,97 @@ export function issueAccessToken({ userId, orgId, role, permVersion }, secret) {
 // `node scripts/check-jwt.js` is the public test suite for this function.
 // ---------------------------------------------------------------------------
 export function verifyAccessToken(token, secret) {
-  // YOURS TO WRITE. Every failure mode listed above must be a 401 UNAUTHENTICATED.
-  // `node scripts/check-jwt.js` is the public suite for this function.
-  throw Object.assign(
-    new Error('TODO: server/auth.js — verifyAccessToken() is yours to write (AUTH-DATA-MODEL.md §10).'),
-    { code: 'NOT_IMPLEMENTED' }
-  );
+  // 1. Token must have exactly 3 segments
+  const parts = String(token ?? '').split('.');
+  if (parts.length !== 3) {
+    throw unauthenticated('malformed token');
+  }
+
+  const [h, p, s] = parts;
+
+  // 2. Decode and validate the header
+  let header;
+
+  try {
+    header = JSON.parse(unb64(h).toString('utf8'));
+  } catch {
+    throw unauthenticated('malformed token header');
+  }
+
+  // Header must be a JSON object
+  if (
+    typeof header !== 'object' ||
+    header === null ||
+    Array.isArray(header)
+  ) {
+    throw unauthenticated('malformed token header');
+  }
+
+  // 3. Pin the JWT algorithm and type
+  if (header.alg !== ALG || header.typ !== 'JWT') {
+    throw unauthenticated('unsupported token algorithm');
+  }
+
+  // 4. Verify the signature
+  const expected = createHmac('sha256', secret)
+    .update(`${h}.${p}`)
+    .digest();
+
+  let actual;
+
+  try {
+    actual = unb64(s);
+  } catch {
+    throw unauthenticated('bad signature');
+  }
+
+  if (
+    actual.length !== expected.length ||
+    !timingSafeEqual(actual, expected)
+  ) {
+    throw unauthenticated('bad signature');
+  }
+
+  // 5. Decode the payload
+  let claims;
+
+  try {
+    claims = JSON.parse(unb64(p).toString('utf8'));
+  } catch {
+    throw unauthenticated('malformed token payload');
+  }
+
+  // Payload must be an object
+  if (
+    typeof claims !== 'object' ||
+    claims === null ||
+    Array.isArray(claims)
+  ) {
+    throw unauthenticated('malformed token payload');
+  }
+
+  // 6. exp must exist, be a number, and be in the future
+  const now = Math.floor(Date.now() / 1000);
+
+  if (
+    typeof claims.exp !== 'number' ||
+    claims.exp <= now
+  ) {
+    throw unauthenticated('token expired');
+  }
+
+  // 7. Verify issuer and audience
+  if (claims.iss !== ISS || claims.aud !== AUD) {
+    throw unauthenticated('bad token issuer or audience');
+  }
+
+  // 8. jti must exist and not be empty
+  if (!claims.jti) {
+    throw unauthenticated('token has no jti');
+  }
+
+  // 9. Everything is valid
+  return claims;
 }
 
 
